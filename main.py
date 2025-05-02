@@ -24,7 +24,7 @@ def webhook():
             return jsonify({"status": "ignored"}), 200
 
         text = data["data"]["payload"]["text"]
-        from_number = data["data"]["from"]["phone_number"]
+        from_number = data["data"]["payload"]["from"]["phone_number"]
 
         # Send to Botpress
         payload = {
