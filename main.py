@@ -6,7 +6,7 @@ app = Flask(__name__)
 # Hardcoded values
 BOTPRESS_WEBHOOK_URL = "https://webhook.botpress.cloud/9f690c52-cca1-429d-bdd1-b821d1e33d50"
 TELNYX_API_KEY = "KEY01967E6CBCC2E7B072AB667FBCDD9AD"
-TELNYX_NUMBER = "+18778091002"
+TELNYX_NUMBER = "+187789091002"
 
 @app.route("/", methods=["GET"])
 def index():
@@ -16,57 +16,53 @@ def index():
 def webhook():
     try:
         data = request.get_json()
-        print("Incoming from Telnyx:", data)
+        print("📩 Incoming from Telnyx:", data)
 
         event_type = data.get("data", {}).get("event_type")
         if event_type != "message.received":
-            print("Ignored non-message event or missing fields.")
-            return jsonify({"status": "ignored"}), 200
+            print("⚠️ Ignored non-message event or missing fields.")
+            return "", 200
 
-        text = data["data"]["payload"]["text"]
-        from_number = data["data"]["payload"]["from"]["phone_number"]
+        message_text = data["data"]["payload"]["text"]
+        sender_number = data["data"]["from"]["phone_number"]
 
-        # Send to Botpress
-        payload = {
-            "type": "text",
-            "text": text,
-            "channel": "telnyx",
-            "from": from_number
-        }
+        print("➡️ Sending to Botpress:", {"text": message_text, "from": sender_number})
 
-        print("Sending to Botpress:", payload)
-        response = requests.post(BOTPRESS_WEBHOOK_URL, json=payload)
-        print("Botpress response:", response.status_code)
-
-        # Parse Botpress response
-        reply_text = "Thanks!"
-        try:
-            bp_response = response.json()
-            reply_text = bp_response.get("responses", [{}])[0].get("text", "Thanks!")
-        except Exception as e:
-            print("Error parsing Botpress response:", e)
-
-        # Send reply via Telnyx
-        sms_payload = {
-            "from": TELNYX_NUMBER,
-            "to": from_number,
-            "text": reply_text
-        }
-
-        sms_response = requests.post(
-            "https://api.telnyx.com/v2/messages",
-            headers={"Authorization": f"Bearer {TELNYX_API_KEY}"},
-            json=sms_payload
+        botpress_response = requests.post(
+            BOTPRESS_WEBHOOK_URL,
+            json={"type": "text", "text": message_text, "channel": "telnyx", "from": sender_number},
+            headers={"Content-Type": "application/json"}
         )
 
-        print("SMS sent via Telnyx:", sms_response.status_code, sms_response.text)
-        return jsonify({"status": "ok"}), 200
+        print("🤖 Botpress response:", botpress_response.status_code)
+        try:
+            reply_text = botpress_response.json().get("messages", [{}])[0].get("text", "")
+        except ValueError:
+            print("⚠️ Botpress returned non-JSON or empty body")
+            reply_text = ""
+
+        if not reply_text:
+            print("⚠️ No reply from Botpress.")
+            return "", 200
+
+        print("📤 Sending via Telnyx:", reply_text)
+        telnyx_response = requests.post(
+            "https://api.telnyx.com/v2/messages",
+            json={
+                "from": TELNYX_NUMBER,
+                "to": sender_number,
+                "text": reply_text
+            },
+            headers={
+                "Authorization": f"Bearer {TELNYX_API_KEY}",
+                "Content-Type": "application/json"
+            }
+        )
+
+        print("📬 Telnyx response:", telnyx_response.status_code, telnyx_response.text)
+        return "", 200
 
     except Exception as e:
-        print("Error:", e)
+        print("❌ Webhook error:", e)
         return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(port=3000)
-
 
