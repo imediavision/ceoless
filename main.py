@@ -5,7 +5,8 @@ import requests
 
 app = Flask(__name__)
 
-BOTPRESS_URL = os.environ.get("BOTPRESS_URL")  # Example: https://yourbot.botpress.cloud/webchat/v1/incoming
+# Environment variables or fallback defaults
+BOTPRESS_URL = os.environ.get("BOTPRESS_URL", "https://telnyx-sms-agent.botpress.cloud/webchat/v1/incoming")
 TELNYX_API_KEY = os.environ.get("TELNYX_API_KEY")
 FROM_NUMBER = os.environ.get("TELNYX_FROM_NUMBER")
 
@@ -14,12 +15,10 @@ def webhook():
     data = request.json
     print("📩 Incoming from Telnyx:", data)
 
-    # Extract incoming SMS text and sender
     try:
         payload = data["data"]["payload"]
         user_text = payload["text"]
         user_phone = payload["from"]["phone_number"]
-        print(f"💬 Received SMS: '{user_text}' from {user_phone}")
     except Exception as e:
         print("❌ Failed to parse incoming SMS:", e)
         return "Invalid format", 400
@@ -33,10 +32,10 @@ def webhook():
 
     try:
         bp_response = requests.post(BOTPRESS_URL, json=bot_request)
-        print("🤖 Botpress response:", bp_response.status_code)
-        print("🧠 Botpress raw response:", bp_response.text)
+        print("📬 Botpress response:", bp_response.status_code)
+        print("🧾 Botpress raw response:", bp_response.text)
         bot_response = bp_response.json()
-        print("🧠 Parsed response JSON:", bot_response)
+        print("📦 Parsed response JSON:", bot_response)
     except Exception as e:
         print("❌ Error talking to Botpress:", e)
         return "Botpress error", 500
@@ -57,14 +56,14 @@ def webhook():
             headers={"Authorization": f"Bearer {TELNYX_API_KEY}"},
             json=sms_data
         )
-        print("📬 SMS sent via Telnyx:", telnyx_response.status_code, telnyx_response.text)
+        print("📤 SMS sent via Telnyx:", telnyx_response.status_code, telnyx_response.text)
     except Exception as e:
         print("❌ Failed to send SMS:", e)
         return "SMS send error", 500
 
     return "OK", 200
 
-
 @app.route("/", methods=["GET"])
 def health():
     return "OK", 200
+
