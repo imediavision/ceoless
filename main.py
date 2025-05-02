@@ -5,8 +5,7 @@ import requests
 
 app = Flask(__name__)
 
-# Environment variables or fallback defaults
-BOTPRESS_URL = os.environ.get("BOTPRESS_URL", "https://telnyx-sms-agent.botpress.cloud/webchat/v1/incoming")
+BOTPRESS_URL = os.environ.get("BOTPRESS_URL")  # Should be set to: https://telnyx-sms-agent.botpress.cloud/webhooks/incoming
 TELNYX_API_KEY = os.environ.get("TELNYX_API_KEY")
 FROM_NUMBER = os.environ.get("TELNYX_FROM_NUMBER")
 
@@ -15,6 +14,7 @@ def webhook():
     data = request.json
     print("📩 Incoming from Telnyx:", data)
 
+    # Extract incoming SMS text and sender
     try:
         payload = data["data"]["payload"]
         user_text = payload["text"]
@@ -35,7 +35,7 @@ def webhook():
         print("📬 Botpress response:", bp_response.status_code)
         print("🧾 Botpress raw response:", bp_response.text)
         bot_response = bp_response.json()
-        print("📦 Parsed response JSON:", bot_response)
+        print("🗂️ Parsed response JSON:", bot_response)
     except Exception as e:
         print("❌ Error talking to Botpress:", e)
         return "Botpress error", 500
@@ -66,4 +66,3 @@ def webhook():
 @app.route("/", methods=["GET"])
 def health():
     return "OK", 200
-
