@@ -3,10 +3,10 @@ import requests
 
 app = Flask(__name__)
 
-# Hardcoded values
-BOTPRESS_WEBHOOK_URL = "https://ceoless.botpress.cloud/webhooks/5aeb2bc4-1776-4f68-87df-f2eacccaa9a6"
-TELNYX_API_KEY = "KEY01967E6CBCC2E7B072ABA667FBCDD9AD"
-TELNYX_NUMBER = "+18778091002"
+# Updated Botpress Webhook URL
+BOTPRESS_WEBHOOK_URL = "https://webhook.botpress.cloud/9f690c52-cca1-429d-bdd1-b821d1e33d50"
+TELNYX_API_KEY = "KEY0123456789ABCDEF"  # Use your real API key here
+TELNYX_NUMBER = "+18778901002"  # Your Telnyx number
 
 @app.route("/", methods=["GET"])
 def index():
@@ -20,24 +20,30 @@ def webhook():
 
         event_type = data.get("data", {}).get("event_type")
         if event_type == "message.received":
-            message_text = data.get("data", {}).get("payload", {}).get("text", "")
-            sender = data.get("data", {}).get("payload", {}).get("from", {}).get("phone_number", "unknown")
+            text = data["data"]["payload"]["text"]
+            from_number = data["data"]["from"]["phone_number"]
 
-            outgoing = {
+            payload = {
                 "type": "text",
-                "text": message_text,
+                "text": text,
                 "channel": "telnyx",
-                "from": sender
+                "from": from_number,
             }
 
-            print("Sending to Botpress:", outgoing)
-            botpress_response = requests.post(BOTPRESS_WEBHOOK_URL, json=outgoing)
-            print("Botpress response:", botpress_response.status_code)
-        return jsonify({"status": "ok"})
+            print("Sending to Botpress:", payload)
+            response = requests.post(BOTPRESS_WEBHOOK_URL, json=payload)
+            print("Botpress response:", response.status_code)
+
+            return jsonify({"success": True}), 200
+        else:
+            print("Unhandled event type:", event_type)
+            return jsonify({"success": False, "reason": "Unhandled event type"}), 400
+
     except Exception as e:
-        print("Webhook error:", str(e))
-        return jsonify({"status": "error", "detail": str(e)}), 500
+        print("Error processing webhook:", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+    app.run(port=3000)
+
 
