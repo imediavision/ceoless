@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: ceoless-webhook
+    env: python
+    buildCommand: ""
+    startCommand: python3 main.py
+    plan: free
+    branch: main
