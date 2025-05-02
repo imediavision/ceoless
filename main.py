@@ -1,77 +1,81 @@
 import os
 import logging
+from flask import Flask, request
 import requests
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
-BOTPRESS_URL = "https://webhook.botpress.cloud/9f690c52-cca1-429d-bdd1-b821d1e33d50"
+# Logging config
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Telnyx and Botpress config (replace with your actual credentials and numbers)
 TELNYX_API_KEY = "KEY0196927FCBC0D2DA1F3E1766FE185297_NiJwOYI8ZNN9khnG6vJSpG"
+TELNYX_PHONE_NUMBER = "+18778091002"
+BOTPRESS_WEBHOOK_URL = "https://webhook.botpress.cloud/9f690c52-cca1-429d-bdd1-b821d1e33d50"
 
 @app.route("/")
 def index():
     return "OK"
 
 @app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json()
-    logging.info(f"📩 Incoming from Telnyx: {data}")
-
+def telnyx_webhook():
     try:
-        data = data.get("data", {})
-        logging.debug(f"DEBUG: data['data'] = {data}")
+        data = request.json
+        logger.info(f"📩 Incoming from Telnyx: {data}")
 
-        payload = data.get("payload", {})
-        from_info = payload.get("from") or {}
-        logging.debug(f"DEBUG: from_info = {from_info}")
+        event = data.get("data", {})
+        payload = event.get("payload", {})
+        from_info = payload.get("from", {})
+        from_number = from_info.get("phone_number")
+        text = payload.get("text")
 
-        if not isinstance(from_info, dict):
-            logging.warning("⚠️ 'from' field is not a dict: %s", from_info)
-            return "Ignored non-message event or missing fields.", 400
+        logger.debug(f"DEBUG: data['data'] = {event}")
+        logger.debug(f"DEBUG: from_info = {from_info}")
 
-        message_text = payload.get("text")
-        sender_number = from_info.get("phone_number")
+        if not from_number or not text:
+            logger.warning("⚠️ Missing from_number or text")
+            return "ignored", 200
 
-        payload_to_botpress = {
-            "text": message_text,
+        # Send to Botpress
+        bp_payload = {
+            "text": text,
             "channel": "telnyx",
-            "from": sender_number
+            "from": from_number
         }
-        logging.info(f"📤 Sending to Botpress: {payload_to_botpress}")
 
-        res = requests.post(BOTPRESS_URL, json=payload_to_botpress)
-        logging.info(f"🤖 Botpress response: {res.status_code}")
+        logger.info(f"📤 Sending to Botpress: {bp_payload}")
+        bp_response = requests.post(BOTPRESS_WEBHOOK_URL, json=bp_payload)
+        logger.info(f"🤖 Botpress response: {bp_response.status_code}")
 
-        try:
-            bot_response = res.json()
-        except Exception as e:
-            logging.error(f"❌ Error parsing Botpress response: {e}")
-            return "", 200
+        reply_text = "Sorry, I didn't get that."
+        if bp_response.text.strip():
+            try:
+                reply = bp_response.json()
+                reply_text = reply.get("text", reply_text)
+            except Exception as e:
+                logger.error(f"❌ Failed to parse Botpress JSON: {e}")
+        else:
+            logger.warning("⚠️ Botpress returned an empty response body.")
 
-        if not bot_response:
-            return "", 200
-
-        text = bot_response.get("payload", {}).get("text")
-        if not text:
-            return "", 200
-
-        telnyx_res = requests.post(
+        # Send SMS back
+        telnyx_payload = {
+            "from": TELNYX_PHONE_NUMBER,
+            "to": from_number,
+            "text": reply_text
+        }
+        telnyx_response = requests.post(
             "https://api.telnyx.com/v2/messages",
             headers={"Authorization": f"Bearer {TELNYX_API_KEY}"},
-            json={
-                "from": payload.get("to", [{}])[0].get("phone_number"),
-                "to": sender_number,
-                "text": text
-            }
+            json=telnyx_payload
         )
-        logging.info(f"📬 SMS sent via Telnyx: {telnyx_res.status_code} {telnyx_res.text}")
+        logger.info(f"📬 SMS sent via Telnyx: {telnyx_response.status_code} {telnyx_response.text}")
+
+        return "ok", 200
 
     except Exception as e:
-        logging.exception(f"❌ Webhook error: {e}")
-        return f"Webhook error: {e}", 500
-
-    return "", 200
+        logger.exception(f"❌ Webhook exception: {e}")
+        return "error", 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=10000)
