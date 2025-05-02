@@ -3,9 +3,9 @@ import requests
 
 app = Flask(__name__)
 
-# Hardcoded values (replace with your actual credentials/URLs)
+# Hardcoded values
 BOTPRESS_WEBHOOK_URL = "https://webhook.botpress.cloud/9f690c52-cca1-429d-bdd1-b821d1e33d50"
-TELNYX_API_KEY = "KEY010967E6CBCC2E7B072AB667FBCDD9AD"
+TELNYX_API_KEY = "KEY01967E6CBCC2E7B072AB667FBCDD9AD"
 TELNYX_NUMBER = "+18778091002"
 
 @app.route("/", methods=["GET"])
@@ -18,33 +18,32 @@ def webhook():
         data = request.get_json()
         print("Incoming from Telnyx:", data)
 
-        # Safely extract values
-        event_type = data.get("data", {}).get("event_type")
-        message_text = data.get("data", {}).get("payload", {}).get("text")
-        from_number = data.get("data", {}).get("from", {}).get("phone_number")
-
-        if event_type != "message.received" or not message_text or not from_number:
-            print("Ignored non-message event or missing fields.")
+        event = data.get("data", {})
+        if event.get("event_type") != "message.received":
+            print("Ignored non-message event")
             return jsonify({"status": "ignored"}), 200
 
-        payload = {
+        text = event.get("payload", {}).get("text")
+        if not text:
+            print("Ignored message with no text")
+            return jsonify({"status": "ignored"}), 200
+
+        from_number = event.get("from", {}).get("phone_number")
+        print("Sending to Botpress:", {"text": text, "from": from_number})
+
+        response = requests.post(BOTPRESS_WEBHOOK_URL, json={
             "type": "text",
-            "text": message_text,
+            "text": text,
             "channel": "telnyx",
             "from": from_number
-        }
+        })
 
-        print("Sending to Botpress:", payload)
-        response = requests.post(BOTPRESS_WEBHOOK_URL, json=payload)
-        print("Botpress response:", response.status_code, response.text)
-
+        print("Botpress response:", response.status_code)
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        print("Error processing webhook:", str(e))
-        return jsonify({"error": str(e)}), 500
+        print("Error:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-if __name__ == "__main__":
-    app.run(port=3000)
 
 
