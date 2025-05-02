@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 TELNYX_API_KEY = "KEY0196927FCBC0D2DA1F3E1766FE185297_NiJwOYI8ZNN9khnG6vJSpG"
 TELNYX_PHONE_NUMBER = "+18778091002"
 BOTPRESS_WEBHOOK_URL = "https://webhook.botpress.cloud/9f690c52-cca1-429d-bdd1-b821d1e33d50"
+FALLBACK_TEXT = "Sorry, I didn't get that."
 
 @app.route("/")
 def index():
@@ -33,6 +34,11 @@ def telnyx_webhook():
         logger.debug(f"DEBUG: data['data'] = {event}")
         logger.debug(f"DEBUG: from_info = {from_info}")
 
+        # Ignore our own fallback response to prevent loops
+        if from_number == TELNYX_PHONE_NUMBER and text == FALLBACK_TEXT:
+            logger.warning("⚠️ Ignoring fallback loop message.")
+            return "ignored", 200
+
         if not from_number or not text:
             logger.warning("⚠️ Missing from_number or text")
             return "ignored", 200
@@ -48,15 +54,16 @@ def telnyx_webhook():
         bp_response = requests.post(BOTPRESS_WEBHOOK_URL, json=bp_payload)
         logger.info(f"🤖 Botpress response: {bp_response.status_code}")
 
-        reply_text = "Sorry, I didn't get that."
         if bp_response.text.strip():
             try:
                 reply = bp_response.json()
-                reply_text = reply.get("text", reply_text)
+                reply_text = reply.get("text", FALLBACK_TEXT)
             except Exception as e:
                 logger.error(f"❌ Failed to parse Botpress JSON: {e}")
+                reply_text = FALLBACK_TEXT
         else:
             logger.warning("⚠️ Botpress returned an empty response body.")
+            reply_text = FALLBACK_TEXT
 
         # Send SMS back
         telnyx_payload = {
