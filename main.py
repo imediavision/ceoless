@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 # Hardcoded values
 BOTPRESS_WEBHOOK_URL = "https://ceoless.botpress.cloud/webhooks/5aeb2bc4-1776-4f68-87df-f2eacccaa9a6"
-TELNYX_API_KEY = "KEY01967E6CBCC2E7B07A2BA667FBCDD9AD"
+TELNYX_API_KEY = "KEY01967E6CBCC2E7B072ABA667FBCDD9AD"
 TELNYX_NUMBER = "+18778091002"
 
 @app.route("/", methods=["GET"])
@@ -19,51 +19,25 @@ def webhook():
         print("Incoming from Telnyx:", data)
 
         event_type = data.get("data", {}).get("event_type")
-        if event_type != "message.received":
-            return jsonify({"status": "ignored"}), 200
+        if event_type == "message.received":
+            message_text = data.get("data", {}).get("payload", {}).get("text", "")
+            sender = data.get("data", {}).get("payload", {}).get("from", {}).get("phone_number", "unknown")
 
-        text = data["data"]["payload"]["text"]
-        from_number = data["data"]["from"]["phone_number"]
+            outgoing = {
+                "type": "text",
+                "text": message_text,
+                "channel": "telnyx",
+                "from": sender
+            }
 
-        botpress_payload = {
-            "type": "text",
-            "text": text,
-            "channel": "telnyx",
-            "from": from_number
-        }
-
-        # Send to Botpress
-        print("Sending to Botpress:", botpress_payload)
-        bp_response = requests.post(BOTPRESS_WEBHOOK_URL, json=botpress_payload)
-        print("Botpress response:", bp_response.status_code)
-
-        if bp_response.status_code != 200:
-            return jsonify({"error": "Botpress error"}), 500
-
-        reply_data = bp_response.json()
-        reply_text = reply_data.get("text", "Thanks!")
-
-        # Send SMS reply via Telnyx
-        send_sms_reply(from_number, reply_text)
-        return jsonify({"status": "ok"}), 200
-
+            print("Sending to Botpress:", outgoing)
+            botpress_response = requests.post(BOTPRESS_WEBHOOK_URL, json=outgoing)
+            print("Botpress response:", botpress_response.status_code)
+        return jsonify({"status": "ok"})
     except Exception as e:
-        print("Webhook error:", e)
-        return jsonify({"error": str(e)}), 500
-
-def send_sms_reply(to_number, message):
-    print(f"Sending SMS to {to_number}: {message}")
-    telnyx_payload = {
-        "from": TELNYX_NUMBER,
-        "to": to_number,
-        "text": message
-    }
-    headers = {
-        "Authorization": f"Bearer {TELNYX_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    response = requests.post("https://api.telnyx.com/v2/messages", json=telnyx_payload, headers=headers)
-    print("Telnyx send response:", response.status_code, response.text)
+        print("Webhook error:", str(e))
+        return jsonify({"status": "error", "detail": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(port=3000)
+    app.run(host="0.0.0.0", port=3000)
+
