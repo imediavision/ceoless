@@ -1,10 +1,11 @@
 import os
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request
 
 app = Flask(__name__)
 
-BOTPRESS_URL = os.getenv("BOTPRESS_URL")  # e.g. https://webhook.botpress.cloud/...
+# Directly setting the Botpress webhook URL
+BOTPRESS_URL = "https://webhook.botpress.cloud/5323dbbd-eb2f-43e6-9535-222a9b31a8ee"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -18,6 +19,10 @@ def webhook():
     print("Botpress response:", response.status_code)
     print("Botpress raw response:", response.text)
     return "OK", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
+
 
 
 
