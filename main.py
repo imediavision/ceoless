@@ -1,44 +1,22 @@
 import os
-import json
-from flask import Flask, request, jsonify
 import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-BOTPRESS_URL = os.environ.get("BOTPRESS_URL")
+BOTPRESS_URL = os.getenv("BOTPRESS_URL")  # e.g. https://webhook.botpress.cloud/...
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.json
-    print("📩 Incoming Test Data:", json.dumps(data, indent=2))
+    print("Incoming Test Data:", data)
 
-    try:
-        payload = data["data"]["payload"]
-        user_text = payload["text"]
-        user_phone = payload["from"]["phone_number"]
-    except Exception as e:
-        print("❌ Failed to parse test data:", e)
-        return "Invalid format", 400
+    # Forward the data to Botpress
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(BOTPRESS_URL, headers=headers, json=data)
 
-    bot_request = {
-        "type": "text",
-        "text": user_text,
-        "channel": "webhook",
-        "userId": user_phone
-    }
-
-    try:
-        bp_response = requests.post(BOTPRESS_URL, json=bot_request)
-        print("📬 Botpress response:", bp_response.status_code)
-        print("🧾 Botpress raw response:", bp_response.text)
-    except Exception as e:
-        print("❌ Error talking to Botpress:", e)
-        return "Botpress error", 500
-
-    return "OK", 200
-
-@app.route("/", methods=["GET"])
-def health():
+    print("Botpress response:", response.status_code)
+    print("Botpress raw response:", response.text)
     return "OK", 200
 
 
