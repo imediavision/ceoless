@@ -5,7 +5,8 @@ import requests
 
 app = Flask(__name__)
 
-BOTPRESS_URL = os.environ.get("BOTPRESS_URL")  # Should be: https://api.botpress.cloud/v1/bot/telnyx-sms-agent/mod/channel-webhook/incoming
+# Environment variables
+BOTPRESS_URL = os.environ.get("BOTPRESS_URL")  # https://api.botpress.cloud/v1/bot/<your-bot-id>/mod/channel-webhook/incoming
 TELNYX_API_KEY = os.environ.get("TELNYX_API_KEY")
 FROM_NUMBER = os.environ.get("TELNYX_FROM_NUMBER")
 
@@ -22,7 +23,7 @@ def webhook():
         print("❌ Failed to parse incoming SMS:", e)
         return "Invalid format", 400
 
-    # Send message to Botpress
+    # Correct Botpress payload format
     bot_request = {
         "type": "text",
         "text": user_text,
@@ -42,7 +43,7 @@ def webhook():
     # Extract reply from Botpress
     bot_text = bot_response.get("payload", {}).get("text", "Sorry, I didn't get that.")
 
-    # Send reply SMS through Telnyx
+    # Send SMS reply via Telnyx
     sms_data = {
         "from": FROM_NUMBER,
         "to": user_phone,
@@ -60,5 +61,9 @@ def webhook():
         print("❌ Failed to send SMS:", e)
         return "SMS send error", 500
 
+    return "OK", 200
+
+@app.route("/", methods=["GET"])
+def health():
     return "OK", 200
 
